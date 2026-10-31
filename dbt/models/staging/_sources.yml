@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: openaq_raw
+    description: Raw OpenAQ partitions written by the Python ingestion.
+    tables:
+      - name: measurements
+        description: One row per sensor-hour; the API response is kept as JSON in payload.
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/openaq/measurements/dt=*/part-000.parquet', hive_partitioning = true, union_by_name = true)"
+      - name: locations
+        description: Unfiltered bbox locations snapshot (reference table, no daily partition).
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/openaq/locations/snapshot.parquet')"
+
+  - name: nasapower_raw
+    description: Raw NASA POWER partitions written by the Python ingestion.
+    tables:
+      - name: weather
+        description: One row per city-day; payload holds the per-variable hourly JSON maps.
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/nasapower/weather/dt=*/part-000.parquet', hive_partitioning = true, union_by_name = true)"
