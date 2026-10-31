@@ -1,0 +1,27 @@
+[project]
+name = "lima-air-quality-elt"
+version = "0.1.0"
+description = "Local ELT pipeline for Lima air quality data"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pyarrow>=15.0",
+    "requests>=2.33.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.11.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
