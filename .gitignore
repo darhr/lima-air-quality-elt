@@ -9,3 +9,12 @@ __pycache__/
 # Raw data
 data/raw/
 data/_state/
+
+# dbt
+dbt_packages/
+target/
+logs/
+.user.yml
+
+# Warehouse
+data/warehouse.duckdb*
