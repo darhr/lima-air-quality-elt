@@ -1,0 +1,2 @@
+city_id,name,country_code,timezone,point_lat,point_lon,bbox_min_lat,bbox_max_lat,bbox_min_lon,bbox_max_lon
+lima,Lima Metropolitana,PE,America/Lima,-12.05,-77.03,-12.35,-11.90,-77.30,-76.80

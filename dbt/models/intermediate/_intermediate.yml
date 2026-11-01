@@ -1,0 +1,136 @@
+version: 2
+
+models:
+  - name: int_station_metadata
+    description: >
+      One row per location observed in the raw measurements, with its name and
+      the first and last measured hour. It is the base of dim_station, so the
+      station set always comes from data instead of the current catalog.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: location_name
+        description: Latest station name sent with the measurements; NULL when the raw has no name.
+      - name: first_measured_at_utc
+        description: First measured hour available for the location.
+        tests:
+          - not_null
+      - name: last_measured_at_utc
+        description: Last measured hour available for the location.
+        tests:
+          - not_null
+
+  - name: int_air_quality_hourly
+    description: >
+      One row per location, pollutant and hour, after selecting the sensor with
+      the highest coverage and flagging physically valid values.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: sensor_id
+        description: Sensor selected for the location, pollutant and hour.
+        tests:
+          - not_null
+      - name: pollutant
+        description: Pollutant code (pm25, pm10, o3).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["pm25", "pm10", "o3"]
+      - name: value
+        description: Hourly measurement in the canonical unit.
+      - name: canonical_unit
+        description: Unit of the value (ug/m3).
+      - name: coverage_pct
+        description: Percentage of expected samples present in the source hour.
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+      - name: is_valid
+        description: Whether the value is inside the pollutant physical range.
+        tests:
+          - not_null
+
+  - name: int_air_quality_daily
+    description: >
+      One row per station, pollutant and UTC day, with the mean of the valid
+      hours and the coverage rule applied. The city mart averages these station
+      days with equal weight.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: pollutant
+        description: Pollutant code (pm25, pm10, o3).
+        tests:
+          - not_null
+      - name: date_utc
+        description: UTC date of the aggregation.
+        tests:
+          - not_null
+      - name: value_mean
+        description: Mean of the valid hourly values of the day.
+      - name: value_min
+        description: Minimum valid hourly value of the day.
+      - name: value_max
+        description: Maximum valid hourly value of the day.
+      - name: n_hours_reported
+        description: Hours with a selected sensor, valid or not.
+        tests:
+          - not_null
+      - name: n_hours_valid
+        description: Hours with a physically valid value.
+        tests:
+          - not_null
+      - name: coverage_pct
+        description: Valid hours divided by the 24 expected hours, as a percentage.
+        tests:
+          - not_null
+      - name: is_valid_day
+        description: Whether coverage reached the station_day threshold.
+        tests:
+          - not_null
+
+  - name: int_weather_hourly
+    description: >
+      One row per city and hour, pivoted from the long staging model, with a
+      physical validity flag that requires every variable to be present and in
+      range.
+    columns:
+      - name: city_id
+        description: Natural city key.
+        tests:
+          - not_null
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+      - name: allsky_sfc_sw_dwn
+        description: All-sky shortwave radiation in W/m2.
+      - name: clrsky_sfc_sw_dwn
+        description: Clear-sky shortwave radiation in W/m2.
+      - name: t2m
+        description: Air temperature at 2 m in C.
+      - name: t2mdew
+        description: Dew point at 2 m in C.
+      - name: rh2m
+        description: Relative humidity at 2 m in percent.
+      - name: ws10m
+        description: Wind speed at 10 m in m/s.
+      - name: wd10m
+        description: Wind direction at 10 m in degrees.
+      - name: prectotcorr
+        description: Corrected precipitation in mm/h.
+      - name: ps
+        description: Surface pressure in kPa.
+      - name: is_valid
+        description: Whether every variable is present and inside its range.
+        tests:
+          - not_null

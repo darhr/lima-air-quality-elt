@@ -1,10 +1,19 @@
 name: lima_air_quality
-version: "1.0.0"
+version: "2.0.0"
 
 profile: lima_air_quality
 
 model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
 clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  date_spine_start: "2020-01-01"
+  date_spine_end: "2030-12-31"
+  min_city_stations: 8
 
 models:
   lima_air_quality:
