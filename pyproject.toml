@@ -9,6 +9,7 @@ dependencies = [
     "dbt-colibri>=0.3.7",
     "pyarrow>=15.0",
     "requests>=2.33.1",
+    "poethepoet>=0.49.0",
 ]
 
 [dependency-groups]
@@ -20,6 +21,38 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.poe.tasks]
+build = "dbt build --project-dir dbt --profiles-dir dbt"
+run = "dbt run --project-dir dbt --profiles-dir dbt"
+test-db = "dbt test --project-dir dbt --profiles-dir dbt"
+
+[tool.poe.tasks.docs]
+help = "Generate the docs site and catalog.json (dbt v2 needs two commands)"
+sequence = ["docs-gen", "catalog"]
+
+[tool.poe.tasks.docs-gen]
+cmd = "dbt docs generate --project-dir dbt --profiles-dir dbt"
+
+[tool.poe.tasks.catalog]
+cmd = "dbt compile --write-catalog --project-dir dbt --profiles-dir dbt"
+
+[tool.poe.tasks.lineage]
+help = "Render the column-level lineage dashboard (run after docs)"
+cmd = "colibri generate --manifest dbt/target/manifest.json --catalog dbt/target/catalog.json --output-dir dist --disable-telemetry"
+
+[tool.poe.tasks.ingest]
+help = "Ingest one UTC day from OpenAQ and NASA POWER"
+cmd = "python src/main.py --date ${date}"
+args = [{ name = "date", positional = true, required = true }]
+
+[tool.poe.tasks.ingest-range]
+help = "Ingest an inclusive UTC day range"
+cmd = "python src/main.py --start ${start} --end ${end}"
+args = [
+    { name = "start", positional = true, required = true },
+    { name = "end", positional = true, required = true },
+]
 
 [tool.ruff]
 target-version = "py312"
