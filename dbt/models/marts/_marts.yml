@@ -1,0 +1,434 @@
+version: 2
+
+models:
+  - name: dim_city
+    description: One row per city served by the pipeline.
+    columns:
+      - name: city_id
+        description: Natural city key (lima).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["lima"]
+      - name: name
+        description: Display name of the city.
+        tests:
+          - not_null
+      - name: country_code
+        description: ISO-2 country code.
+        tests:
+          - not_null
+      - name: timezone
+        description: IANA timezone used to derive local time attributes.
+        tests:
+          - not_null
+      - name: point_lat
+        description: Latitude of the single NASA POWER exposure point.
+      - name: point_lon
+        description: Longitude of the single NASA POWER exposure point.
+      - name: bbox_min_lat
+        description: Southern bound used to assign stations to the city.
+      - name: bbox_max_lat
+        description: Northern bound used to assign stations to the city.
+      - name: bbox_min_lon
+        description: Western bound used to assign stations to the city.
+      - name: bbox_max_lon
+        description: Eastern bound used to assign stations to the city.
+
+  - name: dim_date
+    description: Calendar dimension over the configured UTC date spine.
+    columns:
+      - name: date_key
+        description: Integer date key in YYYYMMDD format.
+        tests:
+          - not_null
+      - name: date_utc
+        description: UTC calendar date.
+        tests:
+          - not_null
+      - name: year
+        description: Calendar year.
+      - name: month
+        description: Calendar month number (1-12).
+      - name: day
+        description: Day of the month (1-31).
+      - name: day_of_week
+        description: Day of week (0 = Sunday, 6 = Saturday).
+      - name: day_name
+        description: English name of the day of the week.
+      - name: month_name
+        description: English name of the month.
+      - name: is_weekend
+        description: Whether the date falls on Saturday or Sunday.
+
+  - name: dim_hour
+    description: One row per UTC hour of the day (0-23).
+    columns:
+      - name: hour_key
+        description: Hour of the day in UTC (0-23).
+        tests:
+          - not_null
+
+  - name: dim_pollutant
+    description: One row per enabled pollutant with its canonical unit and physical range.
+    columns:
+      - name: pollutant
+        description: Pollutant code (pm25, pm10, o3).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["pm25", "pm10", "o3"]
+      - name: display_name
+        description: Human readable pollutant name.
+        tests:
+          - not_null
+      - name: category
+        description: Category of the parameter (pollutant).
+        tests:
+          - not_null
+      - name: canonical_unit
+        description: Unit every measurement is normalized to (ug/m3).
+        tests:
+          - not_null
+      - name: min_valid
+        description: Lower bound of the physically plausible range.
+        tests:
+          - not_null
+      - name: max_valid
+        description: Upper bound of the physically plausible range.
+        tests:
+          - not_null
+
+  - name: dim_station
+    description: >
+      One row per station observed in the measurements, enriched with the
+      current OpenAQ catalog. Stations that leave the catalog stay while their
+      raw data exists; a single-city fallback keeps their city and timezone.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: name
+        description: Station name from the catalog, from the measurements, or a location-id fallback.
+        tests:
+          - not_null
+      - name: locality
+        description: Locality reported by OpenAQ.
+      - name: country_code
+        description: ISO-2 country code.
+      - name: timezone
+        description: IANA timezone of the station, with the single-city fallback.
+      - name: latitude
+        description: Station latitude when the station is still in the catalog.
+      - name: longitude
+        description: Station longitude when the station is still in the catalog.
+      - name: provider_id
+        description: OpenAQ provider identifier.
+      - name: provider_name
+        description: OpenAQ provider name.
+      - name: is_mobile
+        description: Whether the station is mobile.
+      - name: is_monitor
+        description: Whether the location is a monitor.
+      - name: licenses
+        description: JSON array with the source licenses of the location.
+      - name: is_in_catalog
+        description: Whether the location is present in the current OpenAQ catalog snapshot.
+        tests:
+          - not_null
+      - name: first_measured_at_utc
+        description: First measured hour available for the station.
+        tests:
+          - not_null
+      - name: last_measured_at_utc
+        description: Last measured hour available for the station.
+        tests:
+          - not_null
+      - name: city_id
+        description: City assigned to the station by its bounding box, or by the single-city fallback.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_city')
+                field: city_id
+
+  - name: fct_air_quality_hourly
+    description: Base fact with one row per station, pollutant and hour UTC.
+    columns:
+      - name: location_id
+        description: Station key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_station')
+                field: location_id
+      - name: pollutant
+        description: Pollutant key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_pollutant')
+                field: pollutant
+      - name: city_id
+        description: City key of the station.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_city')
+                field: city_id
+      - name: date_key
+        description: UTC date key of the hour (YYYYMMDD).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: hour_key
+        description: UTC hour of the day (0-23).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_hour')
+                field: hour_key
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+      - name: value
+        description: Measurement value in the canonical unit.
+      - name: canonical_unit
+        description: Unit of the value (ug/m3).
+      - name: coverage_pct
+        description: Percentage of expected samples present in the source hour.
+      - name: sensor_id
+        description: Sensor selected for the station, pollutant and hour.
+      - name: is_valid
+        description: Whether the value is inside the pollutant physical range.
+        tests:
+          - not_null
+      - name: local_date
+        description: Station local date of the hour.
+      - name: local_hour
+        description: Station local hour of the day (0-23).
+
+  - name: fct_weather_hourly
+    description: Base fact with one row per city and hour UTC and the nine NASA POWER variables.
+    columns:
+      - name: city_id
+        description: City key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_city')
+                field: city_id
+      - name: date_key
+        description: UTC date key of the hour (YYYYMMDD).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: hour_key
+        description: UTC hour of the day (0-23).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_hour')
+                field: hour_key
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+      - name: allsky_sfc_sw_dwn
+        description: All-sky shortwave radiation in W/m2.
+      - name: clrsky_sfc_sw_dwn
+        description: Clear-sky shortwave radiation in W/m2.
+      - name: t2m
+        description: Air temperature at 2 m in C.
+      - name: t2mdew
+        description: Dew point at 2 m in C.
+      - name: rh2m
+        description: Relative humidity at 2 m in percent.
+      - name: ws10m
+        description: Wind speed at 10 m in m/s.
+      - name: wd10m
+        description: Wind direction at 10 m in degrees.
+      - name: prectotcorr
+        description: Corrected precipitation in mm/h.
+      - name: ps
+        description: Surface pressure in kPa.
+      - name: is_valid
+        description: Whether every variable is present and inside its range.
+        tests:
+          - not_null
+
+  - name: fct_air_quality_city_daily
+    description: >
+      Aggregate fact: one row per city, pollutant and UTC date. The value is
+      the equal-weight mean of the daily means of the stations whose day passed
+      the coverage rule, so it is a per-day aggregate and never a rolling
+      average.
+    columns:
+      - name: city_id
+        description: City key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_city')
+                field: city_id
+      - name: pollutant
+        description: Pollutant key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_pollutant')
+                field: pollutant
+      - name: date_key
+        description: UTC date key (YYYYMMDD).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: value_mean
+        description: Equal-weight mean of the station daily means for the day.
+      - name: n_stations
+        description: Number of stations that contributed a valid day.
+        tests:
+          - not_null
+      - name: is_valid_city_day
+        description: Whether n_stations reached min_city_stations.
+        tests:
+          - not_null
+
+  - name: fct_weather_city_daily
+    description: Aggregate fact with one row per city and UTC date, built from valid weather hours.
+    columns:
+      - name: city_id
+        description: City key.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_city')
+                field: city_id
+      - name: date_key
+        description: UTC date key (YYYYMMDD).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: radiation_sum_mj
+        description: Daily all-sky shortwave radiation in MJ/m2.
+      - name: clrsky_radiation_sum_mj
+        description: Daily clear-sky shortwave radiation in MJ/m2.
+      - name: temp_mean
+        description: Mean air temperature in C.
+      - name: temp_min
+        description: Minimum air temperature in C.
+      - name: temp_max
+        description: Maximum air temperature in C.
+      - name: dew_mean
+        description: Mean dew point in C.
+      - name: rh_mean
+        description: Mean relative humidity in percent.
+      - name: wind_speed_mean
+        description: Mean wind speed in m/s.
+      - name: wind_speed_max
+        description: Maximum wind speed in m/s.
+      - name: wind_dir_dominant
+        description: Circular mean wind direction in degrees.
+      - name: precip_sum
+        description: Daily precipitation in mm.
+      - name: pressure_mean
+        description: Mean surface pressure in kPa.
+      - name: n_hours
+        description: Number of physically valid hours in the day.
+        tests:
+          - not_null
+      - name: coverage_pct
+        description: Valid hours divided by the 24 expected hours, as a percentage.
+        tests:
+          - not_null
+      - name: is_valid_day
+        description: Whether coverage reached the weather_day threshold.
+        tests:
+          - not_null
+
+  - name: mart_city_day
+    description: >
+      Serving view that drills across the city-day air quality and weather
+      facts by city and date, plus city and date attributes. The weather
+      measures repeat for each pollutant because they share the city-day grain.
+    columns:
+      - name: city_id
+        description: City key.
+        tests:
+          - not_null
+      - name: pollutant
+        description: Pollutant key.
+        tests:
+          - not_null
+      - name: date_key
+        description: UTC date key (YYYYMMDD).
+        tests:
+          - not_null
+      - name: date_utc
+        description: UTC calendar date.
+      - name: city_name
+        description: Display name of the city.
+      - name: value_mean
+        description: Equal-weight mean of the valid station daily means.
+      - name: n_stations
+        description: Number of stations that contributed a valid day.
+      - name: aq_valid_city_day
+        description: Whether the air quality city day reached min_city_stations.
+      - name: has_weather
+        description: Whether a weather row exists for the city and date.
+      - name: radiation_sum_mj
+        description: Daily all-sky shortwave radiation in MJ/m2.
+      - name: clrsky_radiation_sum_mj
+        description: Daily clear-sky shortwave radiation in MJ/m2.
+      - name: temp_mean
+        description: Mean air temperature in C.
+      - name: temp_min
+        description: Minimum air temperature in C.
+      - name: temp_max
+        description: Maximum air temperature in C.
+      - name: dew_mean
+        description: Mean dew point in C.
+      - name: rh_mean
+        description: Mean relative humidity in percent.
+      - name: wind_speed_mean
+        description: Mean wind speed in m/s.
+      - name: wind_speed_max
+        description: Maximum wind speed in m/s.
+      - name: wind_dir_dominant
+        description: Circular mean wind direction in degrees.
+      - name: precip_sum
+        description: Daily precipitation in mm.
+      - name: pressure_mean
+        description: Mean surface pressure in kPa.
+      - name: weather_n_hours
+        description: Number of physically valid weather hours in the day.
+      - name: weather_coverage_pct
+        description: Weather coverage of the day as a percentage.
+      - name: weather_valid_day
+        description: Whether the weather day reached the weather_day threshold.
