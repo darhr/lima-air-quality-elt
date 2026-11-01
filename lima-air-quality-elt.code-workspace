@@ -1,0 +1,32 @@
+{
+  "folders": [
+    { "name": "repo", "path": "." },
+    { "name": "dbt", "path": "dbt" }
+  ],
+  "settings": {
+    "dbt.dbtMajorVersion": "v2",
+    "dbt.profileName": "lima_air_quality",
+    "dbt.targetName": "dev",
+    "dbt.environmentVariables": {
+      "DBT_PROFILES_DIR": "<absolute path to your dbt profiles directory>",
+      "DUCKDB_PATH": "<absolute path to your DUCKDB file>",
+      "RAW_ROOT": "<absolute path to your raw data directory>"
+    },
+    "files.watcherExclude": {
+      "**/.venv/**": true,
+      "**/__pycache__/**": true,
+      "**/dbt/target/**": true,
+      "**/dbt/logs/**": true,
+      "**/dbt/dbt_packages/**": true,
+      "**/data/**": true
+    },
+    "search.exclude": {
+      "**/.venv/**": true,
+      "**/__pycache__/**": true,
+      "**/dbt/target/**": true,
+      "**/dbt/logs/**": true,
+      "**/dbt/dbt_packages/**": true,
+      "**/data/**": true
+    }
+  }
+}

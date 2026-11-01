@@ -1,0 +1,95 @@
+version: 2
+
+seeds:
+  - name: pollutant_units
+    description: Canonical unit and valid physical range for each enabled pollutant.
+    columns:
+      - name: pollutant
+        description: Pollutant code used across the model (pm25, pm10, o3).
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: ["pm25", "pm10", "o3"]
+      - name: display_name
+        description: Human readable pollutant name.
+        tests:
+          - not_null
+      - name: category
+        description: Category of the parameter (pollutant).
+        tests:
+          - not_null
+      - name: canonical_unit
+        description: Unit every measurement is normalized to.
+        tests:
+          - not_null
+      - name: min_valid
+        description: Lower bound of the physically plausible range.
+        tests:
+          - not_null
+      - name: max_valid
+        description: Upper bound of the physically plausible range.
+        tests:
+          - not_null
+
+  - name: cities
+    description: Cities served by the pipeline, with the bounding box used to assign stations.
+    columns:
+      - name: city_id
+        description: Natural city key (lima).
+        tests:
+          - not_null
+          - unique
+      - name: name
+        description: Display name of the city.
+        tests:
+          - not_null
+      - name: country_code
+        description: ISO-2 country code.
+        tests:
+          - not_null
+      - name: timezone
+        description: IANA timezone of the city.
+        tests:
+          - not_null
+      - name: point_lat
+        description: Latitude of the single NASA POWER point for the city.
+        tests:
+          - not_null
+      - name: point_lon
+        description: Longitude of the single NASA POWER point for the city.
+        tests:
+          - not_null
+      - name: bbox_min_lat
+        description: Southern bound of the city bounding box.
+        tests:
+          - not_null
+      - name: bbox_max_lat
+        description: Northern bound of the city bounding box.
+        tests:
+          - not_null
+      - name: bbox_min_lon
+        description: Western bound of the city bounding box.
+        tests:
+          - not_null
+      - name: bbox_max_lon
+        description: Eastern bound of the city bounding box.
+        tests:
+          - not_null
+
+  - name: coverage_thresholds
+    description: Minimum hourly coverage required for a daily aggregate to be valid.
+    columns:
+      - name: scope
+        description: Aggregate the threshold applies to (station_day or weather_day).
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: ["station_day", "weather_day"]
+      - name: min_coverage_pct
+        description: Minimum valid hours divided by 24, expressed as a percentage.
+        tests:
+          - not_null

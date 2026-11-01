@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: stg_openaq__locations
+    description: Current OpenAQ location catalog (snapshot), one row per location. It may have non-active stations.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: name
+        description: Station name as published by OpenAQ.
+      - name: locality
+        description: Locality reported by OpenAQ.
+      - name: country_code
+        description: ISO-2 country code.
+      - name: timezone
+        description: IANA timezone of the station.
+      - name: latitude
+        description: Station latitude.
+      - name: longitude
+        description: Station longitude.
+      - name: provider_id
+        description: OpenAQ provider identifier.
+      - name: provider_name
+        description: OpenAQ provider name.
+      - name: is_mobile
+        description: Whether the station is mobile.
+      - name: is_monitor
+        description: Whether the location is a monitor.
+      - name: licenses
+        description: JSON array with the source licenses of the location.
+
+  - name: stg_openaq__measurements
+    description: >
+      One row per OpenAQ sensor-hour with the payload flattened, the pollutant
+      unit normalized to ug/m3 and the source unit kept for audit.
+    columns:
+      - name: location_id
+        description: Natural OpenAQ location key.
+        tests:
+          - not_null
+      - name: location_name
+        description: Station name as sent with the measurement.
+      - name: sensor_id
+        description: Natural OpenAQ sensor key.
+        tests:
+          - not_null
+      - name: pollutant
+        description: Pollutant code (pm25, pm10, o3).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["pm25", "pm10", "o3"]
+      - name: value
+        description: Measurement value normalized to the canonical unit, or NULL for an unsupported unit.
+      - name: canonical_unit
+        description: Unit the value is expressed in after normalization (ug/m3).
+      - name: source_unit
+        description: Unit exactly as sent by OpenAQ (ug/m3 or ppm); NULL when the source omits it.
+      - name: coverage_pct
+        description: Percentage of expected samples present in the source hour.
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+
+  - name: stg_nasapower__weather
+    description: >
+      One row per city, NASA POWER variable and hour, unpivoted from the raw
+      payload, with source fill values converted to NULL.
+    columns:
+      - name: city_id
+        description: Natural city key.
+        tests:
+          - not_null
+      - name: variable
+        description: NASA POWER variable code.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - ALLSKY_SFC_SW_DWN
+                  - CLRSKY_SFC_SW_DWN
+                  - T2M
+                  - T2MDEW
+                  - RH2M
+                  - WS10M
+                  - WD10M
+                  - PRECTOTCORR
+                  - PS
+      - name: measured_at_utc
+        description: Start of the measured hour in UTC.
+        tests:
+          - not_null
+      - name: value
+        description: Variable value in the source unit, or NULL for the -999.0 fill.

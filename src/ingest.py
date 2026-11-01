@@ -5,9 +5,10 @@ Stations are not hardcoded: they are discovered in OpenAQ by bounding box
 (``LIMA_BBOX``). Weather comes from NASA POWER for the single city point
 (``LIMA_CITY_POINT``): its grid cell (radiation at 1 degree, meteorology at
 about 0.5 degree) covers the whole city, so the meteorological exposure is
-city-level. Only the requested parameters and variables are selected, and rows
-are partitioned by UTC day. Fill values (-999.0) are kept as the source sends
-them. Normalization, range filtering and flattening happen in dbt.
+city-level. Only the requested parameters and variables are selected; every
+sensor of a requested parameter is kept, and rows are partitioned by UTC day.
+Fill values (-999.0) are kept as the source sends them. Normalization, range
+filtering and flattening happen in dbt.
 
 Exit codes: 0 ok | 2 validation | 3 rate limit exhausted | 4 source failed.
 Audit: data/_state/ingest_log.jsonl + data/_state/logs/ingest-<run_id>.log.
@@ -20,6 +21,7 @@ import os
 import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from itertools import chain
 from pathlib import Path
 from typing import NamedTuple
 
@@ -92,7 +94,7 @@ class Station(NamedTuple):
     name: str
     latitude: float
     longitude: float
-    sensors: dict[str, int]  # parameter (pm25/pm10/o3) -> sensor_id
+    sensors: dict[str, list[int]]  # parameter (pm25/pm10/o3) -> sensor ids
 
 
 # The schemas are the raw contract: they fix the types written to parquet, so
@@ -298,10 +300,13 @@ def discover_stations(key: str) -> tuple[list[Station], list[dict]]:
     Returns ``(catalog, raw locations)``: the filtered catalog sorted by
     ``location_id``, and **all** the unfiltered bbox locations (the ones dumped
     to ``snapshot.parquet``) so that dbt can check, for example, that no mobile
-    station slipped in.
+    station slipped in. Both collections are deduplicated by location id; a
+    location repeated across pages keeps its last occurrence. Every sensor of an
+    enabled parameter is kept, so dbt can choose one per station, pollutant and
+    hour.
     """
-    stations: list[Station] = []
-    locations: list[dict] = []
+    stations_by_id: dict[int, Station] = {}
+    locations_by_id: dict[int, dict] = {}
     page = 1
     while True:
         payload = api(
@@ -309,16 +314,20 @@ def discover_stations(key: str) -> tuple[list[Station], list[dict]]:
         )
         results = payload.get("results") or []
         for location in results:
-            locations.append(location)  # raw, unfiltered: goes to the snapshot
+            location_id = location["id"]
+            # Last occurrence wins: a location repeated across pages is stored
+            # once in the snapshot and once in the catalog.
+            locations_by_id[location_id] = location
             if location.get("isMobile"):
                 continue  # fixed stations only
-            # Keep only the sensors of the enabled parameters: this map is
-            # what get_openaq queries later, one request per sensor.
-            sensors: dict[str, int] = {}
+            # Keep every sensor of the enabled parameters: dbt selects one per
+            # station, pollutant and hour. Sorting the ids keeps the catalog
+            # deterministic between runs.
+            sensors: dict[str, list[int]] = {}
             for sensor in location.get("sensors") or []:
                 parameter = (sensor.get("parameter") or {}).get("name")
                 if parameter in PARAMETERS:
-                    sensors[parameter] = sensor["id"]
+                    sensors.setdefault(parameter, []).append(sensor["id"])
             if not sensors:
                 continue  # nothing in scope to query for this station
             # Coordinates are mandatory: they are part of the station identity
@@ -328,22 +337,25 @@ def discover_stations(key: str) -> tuple[list[Station], list[dict]]:
             longitude = coordinates.get("longitude")
             if latitude is None or longitude is None:
                 continue
-            stations.append(Station(
-                location_id=location["id"],
-                name=location.get("name") or f"location {location['id']}",
+            stations_by_id[location_id] = Station(
+                location_id=location_id,
+                name=location.get("name") or f"location {location_id}",
                 latitude=float(latitude),
                 longitude=float(longitude),
-                sensors=sensors,
-            ))
+                sensors={
+                    parameter: sorted(set(sensor_ids))
+                    for parameter, sensor_ids in sensors.items()
+                },
+            )
         if len(results) < 1000:
             break  # short page: there are no more results
         page += 1
     # Sorted by natural key so the catalog and the snapshot are deterministic
     # between runs.
-    stations.sort(key=lambda station: station.location_id)
+    stations = sorted(stations_by_id.values(), key=lambda station: station.location_id)
     if not stations:
         die(2, f"OpenAQ: no pm25/pm10/o3 stations in bbox {LIMA_BBOX}")
-    locations.sort(key=lambda location: location["id"])
+    locations = sorted(locations_by_id.values(), key=lambda location: location["id"])
     return stations, locations
 
 
@@ -403,7 +415,7 @@ def get_openaq(
     skipped: list[str] = []
     no_data: list[str] = []
     for station in stations:
-        for sensor_id in station.sensors.values():
+        for sensor_id in chain.from_iterable(station.sensors.values()):
             page = 1
             # A 404/422 marks the sensor as skipped so it is not reported again
             # as "no data": it is gone, not empty.

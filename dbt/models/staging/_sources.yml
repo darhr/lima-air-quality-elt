@@ -1,0 +1,49 @@
+version: 2
+
+sources:
+  - name: openaq_raw
+    description: Raw OpenAQ partitions written by the Python ingestion.
+    tables:
+      - name: measurements
+        description: One row per sensor-hour; the API response is kept as JSON in payload.
+        columns:
+          - name: location_id
+            description: Station requested to the API.
+          - name: location_name
+            description: Station name at ingestion time.
+          - name: sensor_id
+            description: Sensor requested to the API.
+          - name: payload
+            description: Full OpenAQ result object as JSON.
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/openaq/measurements/dt=*/part-000.parquet', hive_partitioning = true, union_by_name = true)"
+      - name: locations
+        description: Unfiltered bbox locations snapshot (reference table, no daily partition).
+        columns:
+          - name: location_id
+            description: OpenAQ location identifier.
+          - name: name
+            description: Station name.
+          - name: timezone
+            description: IANA timezone of the station.
+          - name: latitude
+            description: Station latitude.
+          - name: longitude
+            description: Station longitude.
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/openaq/locations/snapshot.parquet')"
+
+  - name: nasapower_raw
+    description: Raw NASA POWER partitions written by the Python ingestion.
+    tables:
+      - name: weather
+        description: One row per city-day; payload holds the per-variable hourly JSON maps.
+        columns:
+          - name: city_id
+            description: City requested to the API.
+          - name: payload
+            description: NASA POWER geometry and parameter maps as JSON.
+          - name: dt
+            description: Hive partition date (UTC) of the ingested day.
+        config:
+          external_location: "read_parquet('{{ env_var('RAW_ROOT', 'data/raw') }}/nasapower/weather/dt=*/part-000.parquet', hive_partitioning = true, union_by_name = true)"

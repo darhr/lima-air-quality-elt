@@ -5,6 +5,8 @@ description = "Local ELT pipeline for Lima air quality data"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "dbt>=2.0.9",
+    "dbt-colibri>=0.3.7",
     "pyarrow>=15.0",
     "requests>=2.33.1",
 ]

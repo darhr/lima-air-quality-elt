@@ -1,0 +1,4 @@
+pollutant,display_name,category,canonical_unit,min_valid,max_valid
+pm25,PM2.5,pollutant,ug/m3,-5,2000
+pm10,PM10,pollutant,ug/m3,-5,3000
+o3,O3,pollutant,ug/m3,-5,500

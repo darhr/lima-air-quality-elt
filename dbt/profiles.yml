@@ -1,0 +1,9 @@
+lima_air_quality:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
+      schema: dbt_dev_gh
+      threads: 1
+      extensions: [parquet, icu]
